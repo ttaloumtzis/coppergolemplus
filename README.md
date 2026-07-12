@@ -2,8 +2,7 @@
 
 **A Fabric mod for Minecraft Java Edition 1.21.10** that gives copper golems
 persistent chest memory and intelligent item routing — they remember where
-they've deposited items, search smarter when a chest is full, and patrol
-their known chests during idle to keep their memory fresh.
+they've deposited items and search smarter when a chest is full.
 
 ## Features
 
@@ -19,10 +18,6 @@ their known chests during idle to keep their memory fresh.
   to correctly compare 64-stack items, 16-stack items, and non-stackable
   tools/armor). Tiebroken by newest timestamp (keeps the older, more
   stale snapshot since it's more valuable to keep around).
-- **Proactive memory patrol** — during idle, the golem periodically visits
-  the 5 oldest chests to refresh their snapshots. 60-second cooldown
-  between patrol cycles. Automatically stops patrolling once all chests
-  have been refreshed recently.
 - **Vanilla fallback** — when no known chest has the held item, the golem
   searches nearby chunks for *new* chests it hasn't memorized yet, skipping
   any it already knows about.
@@ -52,21 +47,6 @@ tickInteracting HEAD:
   ↓ (tick 60)
 placeStack succeeds → items deposited
 placeStack fails (all full) → invalidateTargetStorage → findStorage runs again
-```
-
-### Patrol flow
-
-```
-Golem idle, no items to sort
-  ↓
-MemoryRefreshTask (added to Activity.IDLE at priority 1):
-  - Cooldown ticks down only during true idle (when MoveItemsTask isn't running)
-  - At 0: picks the 5 oldest chests via findOldestChests(5)
-  - Sets WALK_TARGET to chest #1
-  - On arrival within 2.5 blocks: scanChest → recordChest
-  - Advances to chest #2, #3, ..., #5
-  - Finishes → cooldown resets to 1200 ticks (60s)
-  - If all chests are fresh (<60s since last scan) → skips patrol entirely
 ```
 
 ### Eviction flow
@@ -134,9 +114,6 @@ src/main/java/com/copperplus/enhanced/
     CopperGolemEntityMixin.java    — memory persistence (write/read NBT hooks)
     CopperGolemAttributesMixin.java— follow range & speed boost
     MoveItemsTaskMixin.java        — deposit scan hook, hasInsertSpace
-    CopperGolemBrainMixin.java     — injects MemoryRefreshTask into IDLE
-  task/
-    MemoryRefreshTask.java         — idle patrol: visits oldest chests
 
 src/main/resources/
   fabric.mod.json                  — Fabric mod metadata
@@ -163,9 +140,6 @@ their respective classes:
 | Constant | Location | Default |
 |---|---|---|
 | `MAX_ENTRIES` | `memory/ItemMemory.java` | 20 |
-| `COOLDOWN_TICKS` | `task/MemoryRefreshTask.java` | 1200 (60s) |
-| `MAX_CHESTS_PER_CYCLE` | `task/MemoryRefreshTask.java` | 5 |
-| `SCAN_DISTANCE` | `task/MemoryRefreshTask.java` | 2.5 blocks |
 
 ## Compatibility
 

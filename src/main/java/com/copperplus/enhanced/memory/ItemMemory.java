@@ -37,23 +37,6 @@ public class ItemMemory {
         return result;
     }
 
-    @Nullable
-    public ChestSnapshot findOldestChest() {
-        ChestSnapshot oldest = null;
-        for (ChestSnapshot snapshot : history) {
-            if (oldest == null || snapshot.lastSeenTime() < oldest.lastSeenTime()) {
-                oldest = snapshot;
-            }
-        }
-        return oldest;
-    }
-
-    public List<ChestSnapshot> findOldestChests(int count) {
-        List<ChestSnapshot> sorted = new ArrayList<>(history);
-        sorted.sort(java.util.Comparator.comparingLong(ChestSnapshot::lastSeenTime));
-        return sorted.subList(0, Math.min(count, sorted.size()));
-    }
-
     public void recordChest(BlockPos pos, Map<Item, Integer> contents, long time) {
         history.removeIf(snapshot -> snapshot.pos().equals(pos));
         history.addFirst(new ChestSnapshot(pos, new HashMap<>(contents), time));
@@ -78,17 +61,6 @@ public class ItemMemory {
             }
         }
         if (worst != null) history.remove(worst);
-    }
-
-    public boolean containsChest(BlockPos pos) {
-        for (ChestSnapshot snapshot : history) {
-            if (snapshot.pos().equals(pos)) return true;
-        }
-        return false;
-    }
-
-    public boolean isEmpty() {
-        return history.isEmpty();
     }
 
     public List<ChestSnapshot> toList() {

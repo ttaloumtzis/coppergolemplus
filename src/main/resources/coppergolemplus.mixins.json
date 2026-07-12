@@ -6,8 +6,7 @@
   "mixins": [
     "CopperGolemEntityMixin",
     "CopperGolemAttributesMixin",
-    "MoveItemsTaskMixin",
-    "CopperGolemBrainMixin"
+    "MoveItemsTaskMixin"
   ],
   "client": [],
   "injectors": {

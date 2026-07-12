@@ -6,6 +6,7 @@ import net.minecraft.block.BlockState;
 import net.minecraft.block.Blocks;
 import net.minecraft.block.entity.BlockEntity;
 import net.minecraft.block.entity.ChestBlockEntity;
+import net.minecraft.entity.ai.brain.MemoryModuleType;
 import net.minecraft.entity.ai.brain.task.MoveItemsTask;
 import net.minecraft.entity.mob.PathAwareEntity;
 import net.minecraft.entity.passive.CopperGolemEntity;
@@ -14,8 +15,6 @@ import net.minecraft.item.Item;
 import net.minecraft.item.ItemStack;
 import net.minecraft.server.world.ServerWorld;
 import net.minecraft.util.math.BlockPos;
-import net.minecraft.util.math.Box;
-import net.minecraft.util.math.GlobalPos;
 import net.minecraft.world.World;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
@@ -29,7 +28,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.Set;
 
 @Mixin(MoveItemsTask.class)
 public abstract class MoveItemsTaskMixin {
@@ -42,12 +40,19 @@ public abstract class MoveItemsTaskMixin {
         return false;
     }
 
-    @Inject(method = "tickInteracting", at = @At("HEAD"), require = 0)
+    @Shadow
+    private int interactionTicks;
+
+    @Inject(method = "tickInteracting", at = @At("TAIL"), require = 0)
     private void onTickInteracting(MoveItemsTask.Storage storage, World world, PathAwareEntity entity, CallbackInfo ci) {
         if (entity instanceof CopperGolemEntity golem) {
             CopperGolemMemoryAccess access = (CopperGolemMemoryAccess) golem;
             Map<Item, Integer> contents = copperGolemPlus$scanInventory(storage.inventory());
             access.copperGolemPlus$getMemory().recordChest(storage.pos(), contents, world.getTime());
+            if (interactionTicks >= 60 && golem.getMainHandStack().isEmpty()) {
+                golem.getBrain().forget(MemoryModuleType.WALK_TARGET);
+                golem.getBrain().remember(MemoryModuleType.TRANSPORT_ITEMS_COOLDOWN_TICKS, 140);
+            }
         }
     }
 
@@ -77,18 +82,6 @@ public abstract class MoveItemsTaskMixin {
                 cir.setReturnValue(Optional.of(storage));
                 return;
             }
-        }
-    }
-
-    @Inject(method = "getStorageFor", at = @At("HEAD"), cancellable = true, require = 0)
-    private void onGetStorageFor(PathAwareEntity entity, World world, BlockEntity blockEntity,
-            Set<GlobalPos> visitedPositions, Set<GlobalPos> unreachablePositions, Box box,
-            CallbackInfoReturnable<MoveItemsTask.Storage> cir) {
-        if (!(entity instanceof CopperGolemEntity golem)) return;
-        if (golem.getMainHandStack().isEmpty()) return;
-        CopperGolemMemoryAccess access = (CopperGolemMemoryAccess) golem;
-        if (access.copperGolemPlus$getMemory().containsChest(blockEntity.getPos())) {
-            cir.setReturnValue(null);
         }
     }
 
