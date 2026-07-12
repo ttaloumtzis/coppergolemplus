@@ -68,4 +68,4 @@ src/main/java/com/copperplus/enhanced/
 
 ## License
 
-CC0 1.0 Universal — see `LICENSE` for details.
+MIT — see `LICENSE` for details.
