@@ -37,12 +37,47 @@ public class ItemMemory {
         return result;
     }
 
+    @Nullable
+    public ChestSnapshot findOldestChest() {
+        ChestSnapshot oldest = null;
+        for (ChestSnapshot snapshot : history) {
+            if (oldest == null || snapshot.lastSeenTime() < oldest.lastSeenTime()) {
+                oldest = snapshot;
+            }
+        }
+        return oldest;
+    }
+
+    public List<ChestSnapshot> findOldestChests(int count) {
+        List<ChestSnapshot> sorted = new ArrayList<>(history);
+        sorted.sort(java.util.Comparator.comparingLong(ChestSnapshot::lastSeenTime));
+        return sorted.subList(0, Math.min(count, sorted.size()));
+    }
+
     public void recordChest(BlockPos pos, Map<Item, Integer> contents, long time) {
         history.removeIf(snapshot -> snapshot.pos().equals(pos));
         history.addFirst(new ChestSnapshot(pos, new HashMap<>(contents), time));
         if (history.size() > MAX_ENTRIES) {
-            history.removeLast();
+            evictLeastImportant();
         }
+    }
+
+    private void evictLeastImportant() {
+        ChestSnapshot worst = null;
+        double worstScore = -1;
+        long worstTime = Long.MIN_VALUE;
+        for (ChestSnapshot snapshot : history) {
+            double fullness = 0;
+            for (Map.Entry<Item, Integer> entry : snapshot.contents().entrySet()) {
+                fullness += (double) entry.getValue() / entry.getKey().getMaxCount();
+            }
+            if (fullness > worstScore + 1e-6 || (Math.abs(fullness - worstScore) < 1e-6 && snapshot.lastSeenTime() > worstTime)) {
+                worstScore = fullness;
+                worstTime = snapshot.lastSeenTime();
+                worst = snapshot;
+            }
+        }
+        if (worst != null) history.remove(worst);
     }
 
     public boolean isEmpty() {
