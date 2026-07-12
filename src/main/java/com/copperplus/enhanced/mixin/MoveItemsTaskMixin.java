@@ -14,6 +14,8 @@ import net.minecraft.item.Item;
 import net.minecraft.item.ItemStack;
 import net.minecraft.server.world.ServerWorld;
 import net.minecraft.util.math.BlockPos;
+import net.minecraft.util.math.Box;
+import net.minecraft.util.math.GlobalPos;
 import net.minecraft.world.World;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
@@ -27,6 +29,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 
 @Mixin(MoveItemsTask.class)
 public abstract class MoveItemsTaskMixin {
@@ -74,6 +77,18 @@ public abstract class MoveItemsTaskMixin {
                 cir.setReturnValue(Optional.of(storage));
                 return;
             }
+        }
+    }
+
+    @Inject(method = "getStorageFor", at = @At("HEAD"), cancellable = true, require = 0)
+    private void onGetStorageFor(PathAwareEntity entity, World world, BlockEntity blockEntity,
+            Set<GlobalPos> visitedPositions, Set<GlobalPos> unreachablePositions, Box box,
+            CallbackInfoReturnable<MoveItemsTask.Storage> cir) {
+        if (!(entity instanceof CopperGolemEntity golem)) return;
+        if (golem.getMainHandStack().isEmpty()) return;
+        CopperGolemMemoryAccess access = (CopperGolemMemoryAccess) golem;
+        if (access.copperGolemPlus$getMemory().containsChest(blockEntity.getPos())) {
+            cir.setReturnValue(null);
         }
     }
 

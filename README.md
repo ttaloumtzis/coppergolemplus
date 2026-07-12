@@ -23,9 +23,9 @@ their known chests during idle to keep their memory fresh.
   the 5 oldest chests to refresh their snapshots. 60-second cooldown
   between patrol cycles. Automatically stops patrolling once all chests
   have been refreshed recently.
-- **Vanilla fallback** — items the golem has never seen before fall
-  through to vanilla's built-in chest search. Nothing is broken, only
-  enhanced.
+- **Vanilla fallback** — when no known chest has the held item, the golem
+  searches nearby chunks for *new* chests it hasn't memorized yet, skipping
+  any it already knows about.
 
 ## How it works (detailed)
 

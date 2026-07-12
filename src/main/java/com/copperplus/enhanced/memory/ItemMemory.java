@@ -80,6 +80,13 @@ public class ItemMemory {
         if (worst != null) history.remove(worst);
     }
 
+    public boolean containsChest(BlockPos pos) {
+        for (ChestSnapshot snapshot : history) {
+            if (snapshot.pos().equals(pos)) return true;
+        }
+        return false;
+    }
+
     public boolean isEmpty() {
         return history.isEmpty();
     }
