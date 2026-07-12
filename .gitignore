@@ -1,0 +1,8 @@
+.gradle/
+.idea/
+.serena/
+bin/
+build/
+graphify-out/
+run/
+AGENTS.md

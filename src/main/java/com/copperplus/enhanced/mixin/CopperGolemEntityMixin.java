@@ -1,14 +1,10 @@
 package com.copperplus.enhanced.mixin;
 
-import com.copperplus.enhanced.ai.MemoryScanGoal;
-import com.copperplus.enhanced.ai.SmartReturnToKnownChestGoal;
 import com.copperplus.enhanced.memory.CopperGolemMemoryAccess;
 import com.copperplus.enhanced.memory.GolemMemory;
-import net.minecraft.entity.ai.goal.GoalSelector;
 import net.minecraft.entity.passive.CopperGolemEntity;
 import net.minecraft.nbt.NbtCompound;
 import org.spongepowered.asm.mixin.Mixin;
-import org.spongepowered.asm.mixin.Shadow;
 import org.spongepowered.asm.mixin.Unique;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
@@ -51,8 +47,12 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 @Mixin(CopperGolemEntity.class)
 public abstract class CopperGolemEntityMixin implements CopperGolemMemoryAccess {
 
-	@Shadow
-	protected GoalSelector goalSelector;
+	// NOTE: goalSelector-based injection removed for now - the game crashed
+	// with "@Shadow field goalSelector was not located in the target class",
+	// meaning CopperGolemEntity does NOT use the classic GoalSelector system.
+	// It's very likely Brain/Task-based instead (like Villagers/Piglins).
+	// We need to confirm this via the decompiled source before re-adding
+	// goal logic - see the grep commands from earlier in the conversation.
 
 	@Unique
 	private final GolemMemory copperGolemPlus$memory = new GolemMemory();
@@ -62,17 +62,6 @@ public abstract class CopperGolemEntityMixin implements CopperGolemMemoryAccess 
 		return copperGolemPlus$memory;
 	}
 
-	@Inject(method = "initGoals", at = @At("TAIL"), require = 0)
-	private void copperGolemPlus$addCustomGoals(CallbackInfo ci) {
-		Object self = this;
-		// Priorities: lower number = checked first / higher priority.
-		// These sit alongside (not above) vanilla's own chest-seeking
-		// goals so we never override real vanilla behavior, only fill in
-		// the gaps when the golem would otherwise be idly wandering.
-		this.goalSelector.add(4, new MemoryScanGoal((net.minecraft.entity.mob.PathAwareEntity) self));
-		this.goalSelector.add(7, new SmartReturnToKnownChestGoal((net.minecraft.entity.mob.PathAwareEntity) self));
-	}
-
 	@Inject(method = "writeCustomDataToNbt", at = @At("TAIL"), require = 0)
 	private void copperGolemPlus$writeMemory(NbtCompound nbt, CallbackInfo ci) {
 		nbt.put("CopperGolemPlusMemory", copperGolemPlus$memory.writeNbt());
@@ -80,8 +69,6 @@ public abstract class CopperGolemEntityMixin implements CopperGolemMemoryAccess 
 
 	@Inject(method = "readCustomDataFromNbt", at = @At("TAIL"), require = 0)
 	private void copperGolemPlus$readMemory(NbtCompound nbt, CallbackInfo ci) {
-		if (nbt.contains("CopperGolemPlusMemory")) {
-			copperGolemPlus$memory.readNbt(nbt.getCompound("CopperGolemPlusMemory"));
-		}
+		nbt.getCompound("CopperGolemPlusMemory").ifPresent(copperGolemPlus$memory::readNbt);
 	}
 }

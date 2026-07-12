@@ -75,19 +75,10 @@ public class GolemMemory {
 	// ---------------------------------------------------------------
 	// NBT persistence
 	//
-	// IMPORTANT / VERSION NOTE:
-	// Mojang has been migrating entity save/load away from raw NbtCompound
-	// toward a WriteView / ReadView codec-based system in recent 1.21.x
-	// releases. Depending on your exact Minecraft version, the mixin
-	// injection points in CopperGolemEntityMixin that call these methods
-	// may need to hand you a WriteView/ReadView instead of an NbtCompound.
-	//
-	// If that's the case for your version, wrap the view's NbtCompound
-	// accessor (or use its own list-writing helpers) and adapt the two
-	// methods below accordingly - the logic (list of "x,y,z,time" strings)
-	// stays the same either way. Check with a mapping viewer
-	// (https://linkie.shedaniel.dev) by searching "CopperGolemEntity" and
-	// looking at its write/read-data method signature.
+	// Confirmed for 1.21.10: entity NBT still uses plain NbtCompound
+	// (not the WriteView/ReadView system), but Mojang changed the getter
+	// methods to return Optional<T> instead of raw values/defaults, so
+	// every read goes through .orElse(...) below.
 	// ---------------------------------------------------------------
 
 	public NbtCompound writeNbt() {
@@ -110,11 +101,14 @@ public class GolemMemory {
 		if (!in.contains("Locations")) {
 			return;
 		}
-		NbtList list = in.getList("Locations", 10); // 10 = NbtCompound type id
+		NbtList list = in.getList("Locations").orElse(new NbtList());
 		for (int i = 0; i < list.size(); i++) {
-			NbtCompound e = list.getCompound(i);
-			BlockPos pos = new BlockPos(e.getInt("x"), e.getInt("y"), e.getInt("z"));
-			knownLocations.put(pos, e.getLong("t"));
+			NbtCompound e = list.getCompound(i).orElse(new NbtCompound());
+			int x = e.getInt("x").orElse(0);
+			int y = e.getInt("y").orElse(0);
+			int z = e.getInt("z").orElse(0);
+			long t = e.getLong("t").orElse(0L);
+			knownLocations.put(new BlockPos(x, y, z), t);
 		}
 	}
 }
