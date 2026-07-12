@@ -1,81 +1,71 @@
 # Copper Golem Plus
 
-A Fabric mod that gives copper golems (Java Edition 1.21.10) smarter behavior:
+A Fabric mod for Minecraft Java Edition 1.21.10 that gives copper golems
+persistent chest memory and intelligent item routing.
 
-- **Item/chest memory** — each golem keeps a small persistent memory (saved
-  with the world) of chest locations it has seen nearby.
-- **Smarter pathfinding** — when a golem isn't already busy with vanilla's
-  own chest logic, it proactively walks toward a remembered chest instead
-  of wandering randomly. It also gets a longer follow/detection range and a
-  small speed boost.
+## Features
 
-## Before you build: things to verify
-
-I wrote this without access to your exact decompiled Minecraft sources, so
-a couple of names are **educated guesses** based on standard Mojang/Yarn
-naming conventions used for other mobs. Build will likely fail (loudly, at
-compile time — safe) until you confirm these. Use
-[linkie.shedaniel.dev](https://linkie.shedaniel.dev) (pick Yarn + your MC
-version, search "CopperGolem") or run:
-
-```
-./gradlew genSources
-```
-
-then open the generated `CopperGolemEntity` source in
-`.gradle`/your IDE's library sources to check against:
-
-1. **`gradle.properties`** — `yarn_mappings`, `loader_version`, and
-   `fabric_version` need to match what's currently published for your MC
-   version. Check https://fabricmc.net/develop for current numbers.
-2. **`mixin/CopperGolemEntityMixin.java`**
-   - Confirm the class is really `net.minecraft.entity.passive.CopperGolemEntity`.
-   - Confirm the goal-registration method is really called `initGoals`.
-   - Confirm `writeCustomDataToNbt` / `readCustomDataFromNbt` are still the
-     real method names — Mojang has been migrating some entity NBT code to
-     a `WriteView`/`ReadView` system in recent versions. If yours uses that,
-     the comment in the file explains what to change.
-3. **`mixin/CopperGolemAttributesMixin.java`**
-   - Confirm the static attributes method is really called
-     `createCopperGolemAttributes()`.
-
-Once confirmed, flip `require = 0` to `require = 1` on each `@Inject` in
-both mixin files — that makes Mixin fail loudly if a target ever goes
-missing (e.g. after updating Minecraft) instead of silently doing nothing.
+- **Chest snapshot memory** — each golem remembers up to 20 chests it has
+  interacted with, storing a full inventory scan (`Map<Item, Integer>`) per
+  chest. Persisted with the entity NBT across save/load.
+- **Multi-chest deposit search** — when holding an item, the golem checks
+  all known chests (newest-first) for one with room. Falls through to
+  vanilla's chunk scan if none of its remembered chests have space.
+- **Stack-size-aware eviction** — when memory is full (20 chests), the
+  least useful chest is evicted: most full (slot-weighted by `maxStack`
+  to handle 64/16/1 limits), tiebroken by newest (keep the older, more
+  stale snapshot).
+- **Proactive memory patrol** — during idle the golem periodically visits
+  the 5 oldest chests to refresh their snapshots. 60s cooldown between
+  cycles. Stops patrolling once all chests have been refreshed recently.
+- **Vanilla fallback** — no special behavior for items the golem has never
+  seen; it uses vanilla's built-in chest search.
 
 ## Project layout
 
 ```
 src/main/java/com/copperplus/enhanced/
-  CopperGolemPlusMod.java          - mod entrypoint, just logs on load
-  mixin/
-    CopperGolemEntityMixin.java    - adds goals + NBT save/load hooks
-    CopperGolemAttributesMixin.java- boosts follow range & speed
-  ai/
-    MemoryScanGoal.java            - periodically remembers nearby chests
-    SmartReturnToKnownChestGoal.java - walks to a remembered chest when idle
+  CopperGolemPlusMod.java          — mod entrypoint
   memory/
-    GolemMemory.java               - the actual memory data structure + NBT
-    CopperGolemMemoryAccess.java   - interface for reaching a golem's memory
+    ChestSnapshot.java             — record (BlockPos, Map<Item,Integer>, long)
+    ItemMemory.java                — 20-slot LRU deque + eviction logic
+    CopperGolemMemoryAccess.java   — duck interface for mixin access
+  mixin/
+    CopperGolemEntityMixin.java    — memory persistence (write/read NBT)
+    CopperGolemAttributesMixin.java— attribute boost
+    MoveItemsTaskMixin.java        — deposit scan hook, inventory scan
+    CopperGolemBrainMixin.java     — injects MemoryRefreshTask into IDLE
+  task/
+    MemoryRefreshTask.java         — idle patrol, visits oldest chests
 ```
 
-## Building & testing
+## Building
 
-```
+```bash
 ./gradlew build          # produces the jar in build/libs/
-./gradlew runClient       # launches a dev client with the mod loaded
+./gradlew runClient      # launches a dev client with the mod loaded
+./gradlew runServer      # launches a dedicated server
 ```
 
-Summon a copper golem (`/summon minecraft:copper_golem`), place a chest
-within ~8 blocks, wait a few seconds for it to "notice" the chest, then
-walk it away and watch it path back toward the chest once it's idle.
+## How it works
 
-## Ideas for extending this further
+1. Golem picks up items → `MoveItemsTask.findStorage` fires →
+   `MoveItemsTaskMixin.onFindStorage` iterates all remembered chests for
+   the held item type, checks `canInsert` + actual room, returns the first
+   valid chest. Falls through to vanilla chunk scan if none match.
 
-- Make `MAX_ENTRIES` in `GolemMemory`, the scan radius, and the speed/range
-  boost configurable via a JSON config file instead of hardcoded constants.
-- Have golems on the same team/base share memory (a per-world memory bank
-  keyed by chunk, rather than per-entity) so a new golem "inherits"
-  knowledge from others.
-- Add a "danger memory" too — remember lava/hazard positions to route
-  around, not just chests to route toward.
+2. Golem reaches a chest → `tickInteracting` fires every tick of the
+   interaction → `scanInventory` reads all slot contents →
+   `ItemMemory.recordChest` upserts the snapshot (deduped by position).
+
+3. Golem is idle → `MemoryRefreshTask` counts down 60s → picks the 5
+   oldest chests from memory → navigates to each → scans and updates
+   snapshots. Stops once all chests have been refreshed within 60s.
+
+4. Memory is full → `evictLeastImportant` picks the chest with the highest
+   slot-weighted fullness (sum of `count / maxStackSize` across all item
+   types), tiebroken by newest scan time. That chest is removed.
+
+## License
+
+CC0 1.0 Universal — see `LICENSE` for details.
