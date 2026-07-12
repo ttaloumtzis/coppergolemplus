@@ -1,7 +1,7 @@
 package com.copperplus.enhanced.mixin;
 
+import com.copperplus.enhanced.memory.ChestSnapshot;
 import com.copperplus.enhanced.memory.CopperGolemMemoryAccess;
-import com.copperplus.enhanced.memory.DepositRecord;
 import net.minecraft.block.BlockState;
 import net.minecraft.block.Blocks;
 import net.minecraft.block.entity.BlockEntity;
@@ -23,6 +23,9 @@ import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 @Mixin(MoveItemsTask.class)
@@ -36,16 +39,12 @@ public abstract class MoveItemsTaskMixin {
         return false;
     }
 
-    @Unique
-    private Item copperGolemPlus$pendingItem;
-
-    @Unique
-    private BlockPos copperGolemPlus$pendingPos;
-
     @Inject(method = "tickInteracting", at = @At("HEAD"), require = 0)
     private void onTickInteracting(MoveItemsTask.Storage storage, World world, PathAwareEntity entity, CallbackInfo ci) {
-        if (entity instanceof CopperGolemEntity) {
-            this.copperGolemPlus$pendingPos = storage.pos();
+        if (entity instanceof CopperGolemEntity golem) {
+            CopperGolemMemoryAccess access = (CopperGolemMemoryAccess) golem;
+            Map<Item, Integer> contents = copperGolemPlus$scanInventory(storage.inventory());
+            access.copperGolemPlus$getMemory().recordChest(storage.pos(), contents, world.getTime());
         }
     }
 
@@ -56,47 +55,47 @@ public abstract class MoveItemsTaskMixin {
         if (held.isEmpty()) return;
 
         CopperGolemMemoryAccess access = (CopperGolemMemoryAccess) golem;
-        DepositRecord record = access.copperGolemPlus$getMemory().findLastDeposit(held.getItem());
-        if (record == null) return;
+        List<ChestSnapshot> records = access.copperGolemPlus$getMemory().findChestsWithItem(held.getItem());
 
-        BlockPos pos = record.chestPos();
-        if (!world.isChunkLoaded(pos)) return;
+        for (ChestSnapshot snapshot : records) {
+            BlockPos pos = snapshot.pos();
+            if (!world.isChunkLoaded(pos)) continue;
 
-        BlockState state = world.getBlockState(pos);
-        if (!state.isOf(Blocks.CHEST) && !state.isOf(Blocks.TRAPPED_CHEST)) return;
+            BlockState state = world.getBlockState(pos);
+            if (!state.isOf(Blocks.CHEST) && !state.isOf(Blocks.TRAPPED_CHEST)) continue;
 
-        BlockEntity be = world.getBlockEntity(pos);
-        if (!(be instanceof ChestBlockEntity)) return;
+            BlockEntity be = world.getBlockEntity(pos);
+            if (!(be instanceof ChestBlockEntity)) continue;
 
-        MoveItemsTask.Storage storage = MoveItemsTask.Storage.forContainer(be, world);
-        if (storage == null) return;
+            MoveItemsTask.Storage storage = MoveItemsTask.Storage.forContainer(be, world);
+            if (storage == null) continue;
 
-        if (!canInsert(golem, storage.inventory())) return;
-
-        cir.setReturnValue(Optional.of(storage));
-    }
-
-    @Inject(method = "placeStack", at = @At("HEAD"), require = 0)
-    private void onPlaceStackHead(PathAwareEntity entity, Inventory inventory, CallbackInfo ci) {
-        this.copperGolemPlus$pendingItem = null;
-        if (entity instanceof CopperGolemEntity golem) {
-            ItemStack held = golem.getMainHandStack();
-            if (!held.isEmpty()) {
-                this.copperGolemPlus$pendingItem = held.getItem();
+            if (canInsert(golem, storage.inventory()) && copperGolemPlus$hasInsertSpace(held, storage.inventory())) {
+                cir.setReturnValue(Optional.of(storage));
+                return;
             }
         }
     }
 
-    @Inject(method = "placeStack", at = @At("TAIL"), require = 0)
-    private void onPlaceStackTail(PathAwareEntity entity, Inventory inventory, CallbackInfo ci) {
-        if (this.copperGolemPlus$pendingItem != null && this.copperGolemPlus$pendingPos != null) {
-            if (entity instanceof CopperGolemEntity golem) {
-                CopperGolemMemoryAccess access = (CopperGolemMemoryAccess) golem;
-                long time = golem.getEntityWorld().getTime();
-                access.copperGolemPlus$getMemory().record(this.copperGolemPlus$pendingItem, this.copperGolemPlus$pendingPos, time);
+    @Unique
+    private static boolean copperGolemPlus$hasInsertSpace(ItemStack held, Inventory inventory) {
+        for (int i = 0; i < inventory.size(); i++) {
+            ItemStack slot = inventory.getStack(i);
+            if (slot.isEmpty()) return true;
+            if (ItemStack.areItemsEqual(slot, held) && slot.getCount() < slot.getMaxCount()) return true;
+        }
+        return false;
+    }
+
+    @Unique
+    private static Map<Item, Integer> copperGolemPlus$scanInventory(Inventory inventory) {
+        Map<Item, Integer> contents = new HashMap<>();
+        for (int i = 0; i < inventory.size(); i++) {
+            ItemStack stack = inventory.getStack(i);
+            if (!stack.isEmpty()) {
+                contents.merge(stack.getItem(), stack.getCount(), Integer::sum);
             }
         }
-        this.copperGolemPlus$pendingItem = null;
-        this.copperGolemPlus$pendingPos = null;
+        return contents;
     }
 }

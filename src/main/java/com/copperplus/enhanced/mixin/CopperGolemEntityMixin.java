@@ -1,7 +1,7 @@
 package com.copperplus.enhanced.mixin;
 
+import com.copperplus.enhanced.memory.ChestSnapshot;
 import com.copperplus.enhanced.memory.CopperGolemMemoryAccess;
-import com.copperplus.enhanced.memory.DepositRecord;
 import com.copperplus.enhanced.memory.ItemMemory;
 import com.mojang.serialization.Codec;
 import net.minecraft.storage.ReadView;
@@ -26,12 +26,12 @@ public abstract class CopperGolemEntityMixin implements CopperGolemMemoryAccess 
 
     @Inject(method = "writeCustomData", at = @At("TAIL"), require = 0)
     private void copperGolemPlus$writeMemory(WriteView view, CallbackInfo ci) {
-        view.put("CopperGolemPlusMemory", Codec.list(DepositRecord.CODEC), copperGolemPlus$memory.toList());
+        view.put("CopperGolemPlusChests", Codec.list(ChestSnapshot.CODEC), copperGolemPlus$memory.toList());
     }
 
     @Inject(method = "readCustomData", at = @At("TAIL"), require = 0)
     private void copperGolemPlus$readMemory(ReadView view, CallbackInfo ci) {
-        view.read("CopperGolemPlusMemory", Codec.list(DepositRecord.CODEC))
+        view.read("CopperGolemPlusChests", Codec.list(ChestSnapshot.CODEC))
             .ifPresent(copperGolemPlus$memory::readFrom);
     }
 }

@@ -1,28 +1,45 @@
 package com.copperplus.enhanced.memory;
 
 import java.util.ArrayDeque;
+import java.util.ArrayList;
 import java.util.Deque;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import net.minecraft.item.Item;
 import net.minecraft.util.math.BlockPos;
 import org.jetbrains.annotations.Nullable;
 
 public class ItemMemory {
     private static final int MAX_ENTRIES = 20;
-    private final Deque<DepositRecord> history = new ArrayDeque<>();
+    private final Deque<ChestSnapshot> history = new ArrayDeque<>();
 
     @Nullable
-    public DepositRecord findLastDeposit(Item itemType) {
-        for (DepositRecord record : history) {
-            if (record.itemType().equals(itemType)) {
+    public ChestSnapshot findLastDeposit(Item itemType) {
+        for (ChestSnapshot record : history) {
+            if (record.contents().containsKey(itemType)) {
                 return record;
             }
         }
         return null;
     }
 
-    public void record(Item item, BlockPos pos, long time) {
-        history.addFirst(new DepositRecord(item, pos, time));
+    public List<ChestSnapshot> findChestsWithItem(Item itemType) {
+        List<ChestSnapshot> result = new ArrayList<>();
+        Set<BlockPos> seen = new HashSet<>();
+        for (ChestSnapshot record : history) {
+            if (record.contents().containsKey(itemType) && seen.add(record.pos())) {
+                result.add(record);
+            }
+        }
+        return result;
+    }
+
+    public void recordChest(BlockPos pos, Map<Item, Integer> contents, long time) {
+        history.removeIf(snapshot -> snapshot.pos().equals(pos));
+        history.addFirst(new ChestSnapshot(pos, new HashMap<>(contents), time));
         if (history.size() > MAX_ENTRIES) {
             history.removeLast();
         }
@@ -32,11 +49,11 @@ public class ItemMemory {
         return history.isEmpty();
     }
 
-    public List<DepositRecord> toList() {
+    public List<ChestSnapshot> toList() {
         return List.copyOf(history);
     }
 
-    public void readFrom(List<DepositRecord> list) {
+    public void readFrom(List<ChestSnapshot> list) {
         history.clear();
         list.forEach(history::addLast);
     }
