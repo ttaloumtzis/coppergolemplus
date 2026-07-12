@@ -1,0 +1,14 @@
+{
+  "required": true,
+  "minVersion": "0.8",
+  "package": "com.copperplus.enhanced.mixin",
+  "compatibilityLevel": "JAVA_21",
+  "mixins": [
+    "CopperGolemEntityMixin",
+    "CopperGolemAttributesMixin"
+  ],
+  "client": [],
+  "injectors": {
+    "defaultRequire": 1
+  }
+}

@@ -1,0 +1,28 @@
+{
+  "schemaVersion": 1,
+  "id": "coppergolemplus",
+  "version": "${version}",
+  "name": "Copper Golem Plus",
+  "description": "Gives copper golems smarter pathfinding and a persistent memory of item/chest locations.",
+  "authors": [
+    "you"
+  ],
+  "contact": {},
+  "license": "CC0-1.0",
+  "icon": "assets/coppergolemplus/icon.png",
+  "environment": "*",
+  "entrypoints": {
+    "main": [
+      "com.copperplus.enhanced.CopperGolemPlusMod"
+    ]
+  },
+  "mixins": [
+    "coppergolemplus.mixins.json"
+  ],
+  "depends": {
+    "fabricloader": ">=0.16.0",
+    "minecraft": "~1.21.10",
+    "java": ">=21",
+    "fabric-api": "*"
+  }
+}
